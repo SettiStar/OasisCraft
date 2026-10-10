@@ -61,7 +61,7 @@ Plain HTML5 Canvas + JavaScript with no build step and no dependencies.
   - They need a block under either side of their edge, or a panel below on the same edge, and drop when that goes.
   - Recipes (crafting table): iron bars 6 iron ingots → 16; oak fence 4 planks + 2 sticks → 3; glass pane 6 glass → 16. Panes break into nothing, like glass.
 - **Gun tower** (6 cobblestone + 2 iron ingots + 4 sticks): every second it shoots an arrow at the nearest hostile mob within 8 tiles, at any height. Arrows home in and fly over everything; kills drop loot. Towers fire while you're within about 20 tiles.
-- **Elevators** (8 planks + 1 iron ingot), like OpenBlocks': stand on one and press Space to ride to the next elevator straight up (within 20 layers, through anything in between) or Shift to ride down. Elevators without 2 free blocks above are skipped. While you hold one, a spot turns green if an elevator placed there would sit above another.
+- **Elevators** (8 planks + 1 iron ingot), like OpenBlocks': stand on one and press Space to ride to the next elevator straight up (within 20 layers, through anything in between) or Shift to ride down. Elevators without 2 free blocks above are skipped. While you hold one, a spot turns green if an elevator placed there would line up with another above or below.
 - **Held tools and weapons** are 3D models gripped in the hand and swung with the arm. Worn metal armor shines.
 - **Wooden Greataxe:**
   - Crafted at a table from planks in the shape `PPP / PPS / _ _S` (P = plank, S = stick).

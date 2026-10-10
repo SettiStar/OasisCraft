@@ -881,11 +881,19 @@ const Textures = (() => {
         c.fillStyle = '#5d6369'; c.fillRect(x + 1, 2, 1, 12);
       }
     },
-    fence(c, r) {
-      for (const [x0, y0, w, h, col] of [[0, 3, 16, 3, '#b8905a'], [0, 10, 16, 3, '#b8905a'], [0, 0, 3, 16, '#a07a48'], [13, 0, 3, 16, '#a07a48']]) {
+    // posts: bit 1 = the post at the start (u 0-3), bit 2 = the one at the far end (u 13-16). Where
+    // fences meet, only one piece keeps the shared post (Renderer.fencePosts) and the others' rails run on.
+    fence(c, r, posts) {
+      const parts = [[0, 3, 16, 3, '#b8905a'], [0, 10, 16, 3, '#b8905a']];
+      if (posts & 1) parts.push([0, 0, 3, 16, '#a07a48']);
+      if (posts & 2) parts.push([13, 0, 3, 16, '#a07a48']);
+      for (const [x0, y0, w, h, col] of parts) {
         for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) { c.fillStyle = shade(col, 0.88 + r() * 0.2); c.fillRect(x, y, 1, 1); }
       }
-      c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(3, 6, 10, 1); c.fillRect(3, 13, 10, 1); c.fillRect(2, 0, 1, 16); c.fillRect(15, 0, 1, 16);
+      const r0 = posts & 1 ? 3 : 0, r1 = posts & 2 ? 13 : 16;
+      c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(r0, 6, r1 - r0, 1); c.fillRect(r0, 13, r1 - r0, 1);
+      if (posts & 1) c.fillRect(2, 0, 1, 16);
+      if (posts & 2) c.fillRect(15, 0, 1, 16);
     },
     glass(c) {
       c.fillStyle = 'rgba(200,230,255,0.22)'; c.fillRect(0, 0, 16, 16);
@@ -894,18 +902,19 @@ const Textures = (() => {
       c.fillStyle = 'rgba(255,255,255,0.75)'; c.fillRect(3, 3, 1, 4); c.fillRect(4, 3, 3, 1); c.fillRect(10, 9, 1, 3);
     },
   };
-  function panelTex(kind, light) {
-    const lv = Math.round(Math.max(0, Math.min(1, light)) * 8);
+  // posts (fences only): which end posts to draw, as in PANEL_ART.fence.
+  function panelTex(kind, light, posts = 3) {
+    const lv = Math.round(Math.max(0, Math.min(1, light)) * 8), key = lv * 4 + posts;
     const set = panelCache[kind] || (panelCache[kind] = []);
-    if (set[lv]) return set[lv];
+    if (set[key]) return set[key];
     const c = canvas(), ctx = c.getContext('2d');
-    PANEL_ART[kind](ctx, mulberry32(hashString('panel:' + kind)));
+    PANEL_ART[kind](ctx, mulberry32(hashString('panel:' + kind)), posts);
     if (lv < 8) {
       ctx.globalCompositeOperation = 'source-atop';
       ctx.fillStyle = `rgba(0,0,0,${(1 - lv / 8) * 0.92})`;
       ctx.fillRect(0, 0, TEX, TEX);
     }
-    return (set[lv] = c);
+    return (set[key] = c);
   }
 
   return { init, top, side, east, icons, iconUrl, ghostUrl, conditionUrl, shade, cracks, colors, sprites, panelTex, animate, hunger };

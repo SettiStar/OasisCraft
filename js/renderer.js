@@ -29,7 +29,8 @@ const TORCH_TILT = Math.PI / 4; // how far a wall torch leans out from its wall
 const TORCH_WALL_LIFT = 0.3;    // a wall torch's foot, in layers above the floor of its cell
 const TORCH_SOUTH_OUT = 0.06;   // extra tiles a camera-facing wall torch stands off its wall
 const TORCH_SOUTH_TILT = Math.atan(1 / (MODEL_Q - MODEL_K)); // lean (~81 degrees) that draws as 45 degrees on screen
-// Panel tops: colour, thickness (texels) and which stretches along the edge have one.
+// Panel tops: colour, thickness (texels) and which stretches along the edge have one. A fence's
+// two caps sit on its end posts and go when the post does (bits 1 and 2 of fencePosts).
 const PANEL_STYLE = {
   bars: { cap: '#7d838a', thick: 2, caps: [[0, 16]] },
   fence: { cap: '#c49a62', thick: 3, caps: [[0, 3], [13, 16]] },
@@ -419,7 +420,30 @@ class Renderer {
     take(colAt(x - 1, y), x - 1, y, { e: 'w' });
     if (!list) return;
     list.sort((a, b) => a.z - b.z || (a.side === 'n' ? -1 : 1));
-    for (const p of list) this.drawPanel(p, x, y, ox, oy, T, H, floorZ);
+    for (const p of list) {
+      if (p.kind === 'fence') p.posts = this.fencePosts(colAt, x, y, p.side, p.z);
+      this.drawPanel(p, x, y, ox, oy, T, H, floorZ);
+    }
+  }
+
+  // Does view tile (x, y) have a fence on its north ('n') or west ('w') edge at layer z? It may be
+  // stored on the tile or on the neighbour across that edge (as drawEdgePanels finds them).
+  fenceAt(colAt, x, y, side, z) {
+    const has = (col, want) => !!col && !!col.ups && col.ups.some((u) => {
+      const b = BLOCKS[u.id];
+      return u.z === z && b.panel === 'fence' && STAIR_DIRS.some((d) => (b.edges & EDGE_BIT[d]) && this.viewDir(d) === want);
+    });
+    return side === 'n' ? has(colAt(x, y), 'n') || has(colAt(x, y - 1), 's') : has(colAt(x, y), 'w') || has(colAt(x - 1, y), 'e');
+  }
+
+  // Where fence pieces meet, the corner gets one post instead of one from each. Returns which of
+  // this piece's end posts to draw (bit 1: at its start, the view tile's north-west corner; bit 2:
+  // at its far end). A shared corner's post goes to the first piece there, in this order: a north
+  // piece starting at it, a west piece starting at it, a north piece ending at it, a west piece ending at it.
+  fencePosts(colAt, x, y, side, z) {
+    const f = (fx, fy, s) => this.fenceAt(colAt, fx, fy, s, z);
+    if (side === 'n') return 1 | (f(x + 1, y, 'n') || f(x + 1, y, 'w') ? 0 : 2);
+    return (f(x, y, 'n') ? 0 : 1) | (f(x, y + 1, 'n') || f(x, y + 1, 'w') || f(x - 1, y + 1, 'n') ? 0 : 2);
   }
 
   // One panel: its texture on the vertical plane along the edge (like a block's south or east
@@ -430,10 +454,12 @@ class Renderer {
     const light = this.game.lightAt(p.x, p.y, p.z, this.lightCap);
     const s = T / 16, h = H / 16, north = p.side === 'n';
     if (north) ctx.setTransform(s, 0, h, h, px, py); else ctx.setTransform(0, s, h, h, px, py);
-    ctx.drawImage(Textures.panelTex(p.kind, light), 0, 0);
+    const posts = p.posts ?? 3;
+    ctx.drawImage(Textures.panelTex(p.kind, light, posts), 0, 0);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const st = PANEL_STYLE[p.kind], th = Math.max(1, st.thick * s);
-    for (const [u0, u1] of st.caps) {
+    for (const [i, [u0, u1]] of st.caps.entries()) {
+      if (!(posts & (1 << i))) continue; // a fence post left to the piece it meets (fencePosts)
       const r = north ? [px + u0 * s, py - th / 2, (u1 - u0) * s, th] : [px - th / 2, py + u0 * s, th, (u1 - u0) * s];
       ctx.fillStyle = st.cap; ctx.fillRect(...r);
       if (light < 0.999) { ctx.fillStyle = `rgba(0,0,0,${(1 - light) * 0.9})`; ctx.fillRect(...r); }
@@ -799,11 +825,11 @@ class Renderer {
       ctx.lineWidth = Math.max(2, Math.round(this.T / 32));
       const held = g.player.held, def = held && itemDef(held.id);
       this.tracePick(ctx, hov);
-      // Holding an elevator: the block turns green when one placed there would sit above
-      // another elevator (close enough to ride between them).
+      // Holding an elevator: the block turns green when one placed there would line up with
+      // another elevator above or below (close enough to ride between them).
       if (held && held.id === B.ELEVATOR && hov.kind === 'tile') {
         const [x, y, z] = g.placementCell(hov);
-        if (g.elevatorBelow(x, y, z)) {
+        if (g.elevatorInRange(x, y, z)) {
           ctx.fillStyle = 'rgba(70,230,110,0.4)'; ctx.fill();
           ctx.strokeStyle = 'rgba(90,255,130,0.95)';
         }

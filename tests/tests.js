@@ -335,6 +335,31 @@ OASIS_CONFIG.devTools = true;
     ok(RECIPES.some((r) => r.out.id === I.FENCE) && RECIPES.some((r) => r.out.id === I.GLASS_PANE), 'fence / pane recipes missing');
   });
 
+  test('panels: where fences meet, the corner gets one post', (ok) => {
+    const { x: tx, y: ty, z } = BASE;
+    // Three fences in a row on north edges, plus one on the west edge of the first: 5 corners, so 5 posts.
+    const sx = tx + 2, sy = ty + 2;
+    for (let i = 0; i < 3; i++) ok(g.placePanel(sx + i, sy, z, 'n', 'fence'), 'fence ' + i + ' not placed');
+    ok(g.placePanel(sx, sy, z, 'w', 'fence'), 'corner fence not placed');
+    const real = Textures.panelTex;
+    try {
+      for (const mirror of [false, true]) {
+        Settings.set('mirrorView', mirror);
+        let pieces = 0, posts = 0;
+        Textures.panelTex = (kind, light, bits) => {
+          if (kind === 'fence') { pieces++; posts += (bits & 1) + ((bits >> 1) & 1); }
+          return real(kind, light, bits);
+        };
+        g.renderer.render();
+        Textures.panelTex = real;
+        ok(pieces === 4 && posts === 5, `${mirror ? 'mirrored' : 'normal'} view: ${pieces} pieces drew ${posts} posts (want 4 and 5)`);
+      }
+    } finally {
+      Textures.panelTex = real;
+      Settings.set('mirrorView', false);
+    }
+  });
+
   test('config.js switches: creative mode and dev tools off for players', (ok) => {
     try {
       OASIS_CONFIG.creative = false; OASIS_CONFIG.devTools = false;
@@ -357,7 +382,9 @@ OASIS_CONFIG.devTools = true;
     w.setBlock(tx, ty, z + 3, B.ELEVATOR); w.setBlock(tx, ty, z + 4, B.STONE);   // no room to stand on this one
     w.setBlock(tx, ty, z + 5, B.ELEVATOR);
     const press = (code) => { g.input.pressed.add(code); step(1); g.input.endFrame(); };
-    ok(g.elevatorBelow(tx, ty, z + 6) && !g.elevatorBelow(tx + 1, ty, z + 6), 'elevatorBelow (the placing highlight)');
+    ok(g.elevatorInRange(tx, ty, z + 6) && !g.elevatorInRange(tx + 1, ty, z + 6), 'elevatorInRange: one below (the placing highlight)');
+    ok(g.elevatorInRange(tx, ty, z - 10), 'elevatorInRange: one above should count too');
+    ok(!g.elevatorInRange(tx, ty, z + 26), 'elevatorInRange: more than ELEVATOR_RANGE layers away should not count');
     press('Space');
     ok(p.z === z + 6, 'Space should ride past the blocked elevator to the next one, got layer ' + (p.z - z));
     step(30);

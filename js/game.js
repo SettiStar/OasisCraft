@@ -716,9 +716,11 @@ class Game {
     return false;
   }
 
-  // Is there an elevator below (x, y, z) in the same column, close enough to ride to?
-  elevatorBelow(x, y, z) {
-    for (let k = z - 1; k >= Math.max(0, z - ELEVATOR_RANGE); k--) if (this.world.getBlock(x, y, k) === B.ELEVATOR) return true;
+  // Is there another elevator above or below (x, y, z) in the same column, close enough to ride between?
+  elevatorInRange(x, y, z) {
+    for (let k = 1; k <= ELEVATOR_RANGE; k++) {
+      if (this.world.getBlock(x, y, z - k) === B.ELEVATOR || this.world.getBlock(x, y, z + k) === B.ELEVATOR) return true;
+    }
     return false;
   }
 
