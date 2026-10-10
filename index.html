@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Only the game's own script/style files may run: no inline scripts, eval, plugins,
+       or remote code. Images may come from data: (generated icons, uploaded skins)
+       and http(s) (skin links). Nothing is ever sent anywhere (no connect/form targets).
+       Trusted Types: no string may ever become HTML or script (innerHTML, eval-like
+       sinks...), so even a future bug can't turn text into code. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https: http:; object-src 'none'; base-uri 'none'; form-action 'none'; connect-src 'none'; frame-src 'none'; worker-src 'none'; require-trusted-types-for 'script'; trusted-types 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>OasisCraft</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="damage-flash"></div>
+
+  <div id="hud">
+    <div id="debug"></div>
+    <div id="seed"></div>
+    <div id="clock"></div>
+    <div id="layer-panel"></div>
+    <!-- Right-hand dock, like Tibia's sidebar: the equipment panel, then backpack windows. -->
+    <div id="sidebar">
+      <div id="equipment" class="tw equip">
+        <div class="tw-title"><span>Equipment</span><button id="creative-btn" class="tw-btn tw-wide hidden" title="All items (creative mode)">Creative</button><button id="equip-min" class="tw-btn" title="Minimise">–</button></div>
+        <div class="tw-body equip-body">
+          <div id="equip-grid"></div>
+          <div id="conditions"></div>
+        </div>
+      </div>
+      <div id="containers"></div>
+    </div>
+    <div id="help">
+      <b>WASD</b> move · walk into a 1-high ledge to climb<br>
+      <b>Left click</b> mine / attack · <b>Right click</b> place / use / eat<br>
+      <b>Alt+click</b> target your own layer · <b>Shift+right</b> place on table/furnace<br>
+      <b>1-9 / wheel</b> hotbar · <b>E</b> inventory &amp; crafting · <b>Q</b> drop<br>
+      <b>PgUp/PgDn</b> or <b>[ ]</b> change view layer · <b>V</b> reset view · <b>C</b> cut-off mode · <b>M</b> mirror view · <b>R</b> rotate placement<br>
+      <b>Space / Shift</b> swim up / dive, ride elevators · <b>Ctrl +/−</b> or <b>Ctrl+wheel</b> zoom<br>
+      <b>Esc</b> menu &amp; settings · <span class="dev-only"><b>F3</b> debug · <b>F8</b> cycle weather (testing) · </span><b>H</b> hide help
+    </div>
+    <div id="bottom">
+      <div id="held-name"></div>
+      <div id="status">
+        <div id="hearts"></div>
+        <div class="status-right">
+          <div id="air"></div>
+          <div id="food" title="Hunger"></div>
+          <div id="saturation" title="Saturation"><div></div></div>
+        </div>
+      </div>
+      <div id="hotbar"></div>
+    </div>
+    <div id="message"></div>
+  </div>
+
+  <div id="inventory" class="hidden">
+    <div class="panel inv-panel">
+      <div id="chest-panel" class="hidden">
+        <h2>Chest</h2>
+        <div id="chest-grid" class="grid"></div>
+      </div>
+      <h2>Inventory</h2>
+      <div id="inv-grid" class="grid"></div>
+      <div id="inv-hotbar" class="grid hotrow"></div>
+      <p class="hint">Click to pick up / place · Right-click to split · Shift-click to quick-move</p>
+    </div>
+    <div class="panel craft-panel" id="craft-panel">
+      <h2>Crafting</h2>
+      <div id="station-info"></div>
+      <div id="recipes"></div>
+      <p class="hint">Click to craft one · Shift-click to craft many</p>
+    </div>
+  </div>
+  <div id="cursor-item"></div>
+  <div id="tooltip" class="hidden"></div>
+
+  <div id="menu" class="hidden">
+    <div class="panel menu-page" id="menu-main">
+      <h1>OasisCraft</h1>
+      <p class="sub">Paused</p>
+      <button data-act="resume">Resume</button>
+      <button data-act="worlds">Worlds</button>
+      <button data-act="settings">Settings</button>
+      <button data-act="controls">Controls</button>
+      <p class="hint" id="menu-seed"></p>
+    </div>
+
+    <div class="panel menu-page hidden" id="menu-worlds">
+      <h2>Worlds</h2>
+      <p class="hint">Worlds are saved in this browser. Only the blocks you change are stored, so saves stay small. Autosaves every 30 seconds and when you leave.</p>
+      <div id="world-list"></div>
+      <div class="row">
+        <button data-act="save-now">Save now</button>
+        <button data-act="new-world">New world</button>
+      </div>
+      <div class="row">
+        <input id="new-seed" type="text" placeholder="Seed for a new world (optional)" maxlength="32" spellcheck="false">
+      </div>
+      <p id="world-status" class="hint"></p>
+      <button data-act="back">Back</button>
+    </div>
+
+    <div class="panel menu-page hidden" id="menu-settings">
+      <h2>Settings</h2>
+      <label class="opt"><input type="checkbox" data-set="climbHints"> Blue highlight on blocks you can step up onto (underground)</label>
+      <label class="opt"><input type="checkbox" data-set="outlines"> Height cues (ledge edges, wall bands, shadows)</label>
+      <label class="opt"><input type="checkbox" data-set="leafClear"> Clear tree leaves around the player</label>
+      <label class="opt"><input type="checkbox" data-set="mirrorView"> Mirrored view: look from the opposite side (M)</label>
+      <label class="opt"><input type="checkbox" data-set="showArmor"> Show worn armor on the character</label>
+      <label class="opt"><input type="checkbox" data-set="weather"> Random weather events</label>
+      <label class="opt"><input type="checkbox" data-set="help"> Show controls overlay</label>
+      <label class="opt dev-only"><input type="checkbox" data-set="debug"> Show debug info (F3)</label>
+      <label class="opt">Backpack windows
+        <select data-set="bagLayout">
+          <option value="vertical">Vertical (docked on the right)</option>
+          <option value="horizontal">Horizontal (wide, along the bottom)</option>
+        </select>
+      </label>
+      <label class="opt creative-only"><input type="checkbox" data-set="creative"> Creative mode</label>
+      <label class="opt">Cut-off (hide layers above you)
+        <select data-set="cutMode">
+          <option value="auto">Auto: when under a roof</option>
+          <option value="always">Always</option>
+          <option value="off">Off</option>
+        </select>
+      </label>
+      <button data-act="skin">Skin editor…</button>
+      <button data-act="back">Back</button>
+    </div>
+
+    <div class="panel menu-page hidden" id="menu-controls">
+      <h2>Controls</h2>
+      <div id="menu-controls-text" class="controls-text"></div>
+      <button data-act="back">Back</button>
+    </div>
+
+    <div class="panel menu-page hidden" id="menu-skin">
+      <h2>Skin editor</h2>
+      <div class="skin-layout">
+        <canvas id="skin-preview" width="240" height="290"></canvas>
+        <div class="skin-side">
+          <h3>Presets</h3>
+          <div id="skin-presets"></div>
+          <button data-act="skin-random">Random preset</button>
+          <h3>NovaSkin link</h3>
+          <p class="hint">Paste a NovaSkin skin page (minecraft.novaskin.me/post/…), a novask.in short link, or any link to a skin PNG.</p>
+          <div class="row">
+            <input id="skin-url" type="text" placeholder="https://minecraft.novaskin.me/post/…" spellcheck="false">
+            <button data-act="skin-load-url">Load</button>
+          </div>
+          <h3>Upload a skin file</h3>
+          <input id="skin-file" type="file" accept="image/png">
+          <p id="skin-status"></p>
+        </div>
+      </div>
+      <button data-act="back">Done</button>
+    </div>
+  </div>
+
+  <div id="death" class="hidden">
+    <h1>You died!</h1>
+    <p id="death-reason"></p>
+    <button id="respawn">Respawn</button>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/noise.js"></script>
+  <script src="js/blocks.js"></script>
+  <script src="js/textures.js"></script>
+  <script src="js/worldgen.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/inventory.js"></script>
+  <script src="js/skins.js"></script>
+  <script src="js/models.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/mobs.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/save.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
